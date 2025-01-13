@@ -1,9 +1,25 @@
+//Práticas de GPIO com delay
+//Unidade 4 | Capítulo 3
+//Exercício do Cofre
+//Nome: Cofre_embarcatech
+//Autor: José Adriano Filho
+// Abrir cofre: Digite a senha correta
+// Simular fechar o cofre: pressione "#" no teclado quando o led verde estiver aceso
+// Tempo de bloqueio: 20s
+// Ao bloquear o cofre o led vermelho fica aceso direto para indicar esta situação
+// O led azul é apenas para indicar que o sistema está ligado.
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 
 //Definição do número de linhas e colunas do teclado
 #define LINHAS 4
 #define COLUNAS 4
+
+//Definição dos pinos dos LEDs
+#define LED_VERMELHO_PIN 12
+#define LED_VERDE_PIN 11
+#define LED_AZUL_PIN 21
 
 //Definição dos pinos dos segmentos e controles dos displays (Dig1, Dig2, Dig3, Dig4)
 const uint8_t segmentos_pins[] = {0, 1, 2, 3, 4, 5, 6};
@@ -36,30 +52,134 @@ const char teclado[LINHAS][COLUNAS] = {
     {'*', '0', '#', 'D'}
 };
 
-//Protótipos das funções
+//Definição da senha do cofre
+int senha = 1324;
+
+//Protótipo das funções
+void init_leds();
 void init_display();
 void mostra_digito(uint8_t display, uint8_t digito);
 void mostra_numero(int numero);
 void init_teclado();
 char le_teclado();
 int le_senha();
+void estadoZero(int *numero, int *estado);
+void estadoUm(int *estado);
+void estadoDois(int *tentativas, int *estado);
 
+//Função principal
 int main()
 {
     stdio_init_all();
     init_display();
     init_teclado();
+    init_leds();
 
     int numero = 0;
-    int senha = 1324;
+    int estado = 0;
+    static int tentativas = 0;
 
     while (true) {
 
-    numero = le_senha();
-    mostra_numero(numero);
-    sleep_ms(5000);
-
+        switch (estado)
+        {
+        case 0:
+            estadoZero(&numero, &estado);
+            break;
+        case 1:
+            estadoUm(&estado);
+            break;
+        case 2:
+            tentativas++;
+            estadoDois(&tentativas, &estado);
+            break;
+        default:
+            break;
+        }
     }
+}
+
+//Função para o estado 0
+void estadoZero(int *numero, int *estado)
+{
+    *numero = le_senha();
+    if (*numero == 1234) 
+    {
+        *estado = 1;
+    } 
+    else
+    {
+        if(*numero == 'A')
+        {
+            *estado = 3; 
+        }
+        else
+        {
+            *estado = 2;
+        }
+    }
+    
+}
+
+//Função para o estado 1 
+void estadoUm(int *estado)
+{
+    bool aberto = true;
+    while(aberto)
+    {
+        gpio_put(LED_VERDE_PIN, 1);
+
+        char tecla = le_teclado();
+        if (tecla != '\0') 
+        {
+            if (tecla == '#') 
+            {
+                aberto = false;
+                gpio_put(LED_VERDE_PIN, 0);
+                *estado = 0;
+                break;
+            }
+        }
+    }
+}
+
+void estadoDois(int *tentativas, int *estado)
+{
+    if (*tentativas == 3) 
+    {
+        gpio_put(LED_VERMELHO_PIN, 1);
+        sleep_ms(10000);
+        gpio_put(LED_VERMELHO_PIN, 0);
+        *tentativas = 0;
+        *estado = 0;
+    }
+    else
+    {
+        for(int i = 0; i < 3; i++)
+        {
+            gpio_put(LED_VERMELHO_PIN, 1);
+            sleep_ms(500);
+            gpio_put(LED_VERMELHO_PIN, 0);
+            sleep_ms(500);
+            *estado = 0;
+        }
+    }
+}
+
+//Função para inicializar os LEDs
+void init_leds()
+{
+    gpio_init(LED_VERMELHO_PIN);
+    gpio_set_dir(LED_VERMELHO_PIN, GPIO_OUT);
+    gpio_put(LED_VERMELHO_PIN, 0);
+
+    gpio_init(LED_VERDE_PIN);
+    gpio_set_dir(LED_VERDE_PIN, GPIO_OUT);
+    gpio_put(LED_VERDE_PIN, 0);
+
+    gpio_init(LED_AZUL_PIN);
+    gpio_set_dir(LED_AZUL_PIN, GPIO_OUT);
+    gpio_put(LED_AZUL_PIN, 1);
 }
 
 //Função para inicializar os displays
@@ -152,26 +272,24 @@ char le_teclado()
 
 int le_senha()
 {
-    char senhaChar[5];
     int senhaInt = 0;
-    char tecla = '\0';
+    char tecla;
+    int i = 0;
 
-    for (int i = 0; i < 4; i++) 
-    {
-        tecla = '\0';
-        while (tecla == '\0') 
-        {
-            tecla = le_teclado();
-            if(tecla <'0' || tecla > '9')
-            {
-                tecla = '\0';       //Se a tecla não for um número, lê novamente
-                i--;                //Decrementa o índice para ler novamente a mesma posição
+    while (i < 4) {
+        tecla = le_teclado();
+        if (tecla != '\0') {
+            if (tecla >= '0' && tecla <= '9') {
+                senhaInt = senhaInt * 10 + (tecla - '0');
+                i++;
             }
         }
-        senhaChar[i] = tecla;
-        senhaInt = senhaInt * 10 + (tecla - '0'); //Converte o caractere para número   
+        if(i > 0)
+        {
+            mostra_numero(senhaInt);
+        }
+        //mostra_numero(senhaInt);
     }
-    senhaChar[4] = '\0';
     
     return senhaInt;
 }
