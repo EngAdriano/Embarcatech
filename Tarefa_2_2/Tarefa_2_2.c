@@ -40,6 +40,11 @@ int main()
     struct repeating_timer timer_bota_B;
     add_repeating_timer_ms(100, monitora_botao_B_callback, NULL, &timer_bota_B);
 
+    printf("Tarefa 2.2 - Unidade 4\n");
+    printf("Pressione o botão verde 5 vezes para iniciar os pulsos\n");
+    printf("Pressione o botão vermelho para mudar a frequência\n");
+
+
     while (true) 
     {
         if(!flag_monitora_botao)
@@ -178,6 +183,8 @@ bool pisca_led_callback(struct repeating_timer *t)
     {
         freq = ((float)contador/2) / 10;
         printf("Frequência: %.2f Hz\n", freq);
+        printf("Pressione o botão verde 5 vezes para iniciar os pulsos\n");
+        printf("Pressione o botão vermelho para mudar a frequência\n");
         cancel_repeating_timer(t);
         led_piscando = false;
         gpio_put(LED_PIN, false);

@@ -1,3 +1,9 @@
+//*******************************************************************************************************************
+// Tarefa 2.1 - Criado: 12/01/25
+// Autor: José Adriano
+// Descrição: Programa que pisca um LED a cada 5 vezes que um botão "A" é pressionado. 
+// O LED pisca a uma frequência de 10Hz e duração de 10s.
+//*******************************************************************************************************************
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/timer.h"
@@ -27,6 +33,9 @@ int main()
 
     struct repeating_timer timer;
     add_repeating_timer_ms(100, monitora_botao_callback, NULL, &timer);
+
+    printf("Tarefa 2.1 - Unidade 4\n");
+    printf("Pressione o botão 5 vezes\n");
 
     while (true) 
     {
@@ -107,18 +116,32 @@ bool pisca_led_callback(struct repeating_timer *t)
 {
     static int contador = 0;
     static bool led_ligado = false;
+    static int tempoContador = 0;
+    int resto = 0;
     led_ligado = !led_ligado;
     gpio_put(LED_PIN, led_ligado);
 
-    printf("LED %s\n", led_ligado ? "ligado" : "desligado");
+    resto = contador % 2;
+
+    if(resto == 0)
+    {
+        printf("Pulsos: %d\n", (tempoContador + 1));
+        tempoContador++;
+    }
+
     contador++;
 
     if(contador == tempo)
     {
+        float freq = 0.0;
+        freq = ((float)contador/2) / 10;
+        printf("Frequência: %.2f Hz\n", freq);
+        printf("Pressione o botão 5 vezes\n");
         cancel_repeating_timer(t);
         led_piscando = false;
         gpio_put(LED_PIN, false);
         contador = 0;
+        tempoContador = 0;
         flag_monitora_botao = false;
         return false;
     }

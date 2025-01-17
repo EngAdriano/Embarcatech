@@ -1,23 +1,11 @@
-//*******************************************************************************************************************
-// Criado: 14/01/25
-// Autor: José Adriano
-// Descrição: Utilização de RTC DS1307 com RaspberryPi Pico W 
-// Configurada para 24/09/2024 - 13:27:00
-// Mostra data e hora no console a cada 5 segundos
-//*******************************************************************************************************************
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
-#include "hardware/timer.h"
 
 // Definições dos pinos do I2C
-#define I2C_SDA_PIN 16  // SDA
-#define I2C_SCL_PIN 17  // SCL
-
-//Definido a frequência dotimer (5 segundos = 5000 ms)
-#define INTERVALO_TIMER_MS 5000
-
-
+#define I2C_SDA_PIN 20  // SDA
+#define I2C_SCL_PIN 21  // SCL
 
 // Endereço I2C do DS1307
 #define DS1307_ADDRESS 0x68
@@ -28,7 +16,6 @@ int bcd_decimal(int valor);
 void set_rtc_time(uint8_t segundo, uint8_t minuto, uint8_t hora, uint8_t dia, uint8_t diaMes, uint8_t mes, uint8_t ano);
 void get_rtc_time();
 void init_i2c();
-bool repeating_timer_callback(repeating_timer_t *rt);
 
 int main() {
   // Inicializa as funções padrão
@@ -37,26 +24,16 @@ int main() {
   // Inicializa o I2C
   init_i2c();
 
-  printf("Tarefa 2.4 - Unidade 4\n");
   // Configura a data e hora inicial no RTC DS1307
-  printf("Configurando o RTC DS1307 para 24/09/2024 as 15:27:00\n");
+  printf("Configurando o RTC DS1307...\n");
   set_rtc_time(0, 27, 13, 2, 24, 9, 24);  // 24/09/2024 - 13:27:00
 
-  printf("RTC será lido a cada 5 segundos\n");
-  repeating_timer_t timer;
-  if (add_repeating_timer_ms(INTERVALO_TIMER_MS, repeating_timer_callback, NULL, &timer)) 
-  { 
-    printf("Timer inicializado com sucesso\n"); 
-  } 
-  else 
-  { 
-    printf("Falha ao inicializar o timer\n"); return true; 
-  }
+  printf("Sistema inicializado! Lendo RTC a cada 5 segundos...\n");
 
   // Loop principal: lê e exibe a data/hora a cada 5 segundos
-  while (true) 
-  {
-    sleep_ms(1);
+  while (true) {
+    get_rtc_time();
+    sleep_ms(5000);  // Atraso de 5 segundos
   }
 
   return 0;
@@ -77,12 +54,12 @@ int bcd_decimal(int valor)
   return ((valor / 16 * 10) + (valor % 16));
 }
 
-// Seta as configurações de data e hora no DS1307
+// Configura a data e hora no DS1307
 void set_rtc_time(uint8_t segundo, uint8_t minuto, uint8_t hora, uint8_t dia, uint8_t diaMes, uint8_t mes, uint8_t ano) 
 {
   uint8_t tempoCalendario[8] = {
     0x00,                         // Começa no registro 0x00
-    decimal_bcd(segundo) & 0x7F,  // Segundos 
+    decimal_bcd(segundo) & 0x7F,  // Segundos (ativa o oscilador com MSB = 0)
     decimal_bcd(minuto),          // Minutos
     decimal_bcd(hora),            // Horas
     decimal_bcd(dia),             // Dia da semana
@@ -91,24 +68,24 @@ void set_rtc_time(uint8_t segundo, uint8_t minuto, uint8_t hora, uint8_t dia, ui
     decimal_bcd(ano)              // Ano
   };
 
-  // Configura os registradores internos do DS1307
+  // Escreve nos registros do RTC
   i2c_write_blocking(i2c0, DS1307_ADDRESS, tempoCalendario, 8, false);
 }
 
-// Função para recuperar a data e hora do DS1307
+// Função para ler a data e hora do DS1307
 void get_rtc_time() 
 {
   uint8_t dadosHora[7];
-  uint8_t registroInicial = 0x00;
 
-  // Escreve o valor do registro inicial
+  // Solicita leitura a partir do endereço 0x00
+  uint8_t registroInicial = 0x00;
   i2c_write_blocking(i2c0, DS1307_ADDRESS, &registroInicial, 1, true);
 
-  // Lê as informações de data e hora e armazena em um vetor de 7 posições
+  // Lê os 7 registros de tempo
   i2c_read_blocking(i2c0, DS1307_ADDRESS, dadosHora, 7, false);
 
-  // Faz as conversões para facilitar a impressão no console
-  int segundos = bcd_decimal(dadosHora[0] & 0x7F);  
+  // Converte os valores lidos de BCD para decimal
+  int segundos = bcd_decimal(dadosHora[0] & 0x7F);  // Remove o bit MSB (oscilador)
   int minutos = bcd_decimal(dadosHora[1]);
   int hora = bcd_decimal(dadosHora[2]);
   int dia = bcd_decimal(dadosHora[3]);
@@ -116,12 +93,12 @@ void get_rtc_time()
   int mes = bcd_decimal(dadosHora[5]);
   int ano = bcd_decimal(dadosHora[6]);
 
-  // mostra os valores no console
-  printf("Data: %02d/%02d/20%02d - ", diaMes, mes, ano);
+  // Imprime os valores no console
+  printf("Data: %02d/%02d/20%02d\n", diaMes, mes, ano);
   printf("Hora: %02d:%02d:%02d\n", hora, minutos, segundos);
 }
 
-// Inicializa o I2C no Raspberry Pi Pico W
+// Inicializa o I2C no Raspberry Pi Pico
 void init_i2c() 
 {
   i2c_init(i2c0, 100 * 1000);  // Velocidade de 100kHz
@@ -129,11 +106,4 @@ void init_i2c()
   gpio_set_function(I2C_SCL_PIN, GPIO_FUNC_I2C);
   gpio_pull_up(I2C_SDA_PIN);
   gpio_pull_up(I2C_SCL_PIN);
-}
-
-//Handler da interrupção do timer
-bool repeating_timer_callback(repeating_timer_t *rt)
-{
-  get_rtc_time();
-  return true;
 }
