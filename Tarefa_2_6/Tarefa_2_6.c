@@ -1,3 +1,9 @@
+//*******************************************************************************************************************
+// Tarefa 2.6 - Unidade 4 - Criado: 18/01/25
+// Autor: José Adriano
+// Descrição: Leitura do sensor de temperatura interno 
+// Alterar para mostrar a leitura de celsius para fahrenheit
+//*******************************************************************************************************************
 #include <stdio.h>              // Biblioteca padrão para entrada e saída, utilizada para printf.
 #include "pico/stdlib.h"        // Biblioteca padrão para funções básicas do Pico, como GPIO e temporização.
 #include "hardware/adc.h"       // Biblioteca padrão para funções do conversor ADC
