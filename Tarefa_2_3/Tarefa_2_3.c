@@ -1,59 +1,60 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "hardware/uart.h"
 
-// Definição dos pinos TX e RX para UART0 e UART1
-#define UART0_TX_PIN 0  // UART0 TX
-#define UART0_RX_PIN 1  // UART0 RX
-#define UART1_TX_PIN 4  // UART1 TX
-#define UART1_RX_PIN 5  // UART1 RX
+// Definições dos pinos de UART0 e UART1
+#define UART0_TX_PIN 0
+#define UART0_RX_PIN 1
+#define UART1_TX_PIN 4
+#define UART1_RX_PIN 5
 
-void config_uart() {
-  // Configura a UART0
-  uart_init(uart0, 9600);  // Inicializa UART0 a 9600 baud
-  gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
-  gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
+void uartTeste(void);
 
-  // Configura a UART1
-  uart_init(uart1, 9600);  // Inicializa UART1 a 9600 baud
-  gpio_set_function(UART1_TX_PIN, GPIO_FUNC_UART);
-  gpio_set_function(UART1_RX_PIN, GPIO_FUNC_UART);
+int main() 
+{
+    // Inicializa a UART padrão e as outras UARTs
+    stdio_init_all();
+    
+    uart_init(uart0, 115200);
+    uart_init(uart1, 115200);
+
+    // Configura os pinos para UART0 e UART1
+    gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(UART1_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(UART1_RX_PIN, GPIO_FUNC_UART);
+
+  while(true)
+  {
+    uartTeste();
+  }
+    
+    return 0;
 }
 
-int main() {
-  // Inicialização do sistema
-  stdio_init_all();
+void uartTeste(void)
+{
+  char input;
+  printf("Digite um caractere: ");
 
-  // Configura UART's
-  config_uart();
+  // Lê o dado do console
+  scanf(" %c", &input);
 
-  printf("Tarefa EMBARCATECH - Unidade 4.\n");
-  printf("Sistema inicializado! Digite algo no console:\n");
-
-  char input[100];  // Buffer para armazenar a entrada do console
-
-  while (true) {
-    // Substitui scanf para poder ler uma linha inteira do console (inclui espaços)
-    if (fgets(input, sizeof(input), stdin) != NULL) {
-      printf("Você digitou: %s", input);
-
-      // Envia o dado via UART0 para UART1
-      for (int i = 0; input[i] != '\0'; i++) {
-        uart_putc(uart0, input[i]);  // Envia pela UART0
-      }
-
-      printf("Dados transmitidos via UART0 para UART1.\n");
-
-      // Lê o dado de volta da UART1
-      printf("Recebendo dados da UART1...\n");
-      while (uart_is_readable(uart1)) {
-        char c = uart_getc(uart1);  // Recebe da UART1
-        printf("%c", c);           // Imprime no console
-      }
-      printf("\n");
-    }
-
-    sleep_ms(100);  // Para evitar loop muito rápido
+  // Limpa o buffer da UART1
+  while (uart_is_readable(uart1)) 
+  {
+      uart_getc(uart1);
   }
 
-  return 0;
+  // Transmite o dado da UART0 para a UART1
+  //uart_putc_raw(uart0, input);
+  printf("%c", input);
+
+  sleep_ms(100); // Adiciona um pequeno delay para garantir que o dado seja transmitido
+
+  // Recebe o dado da UART1
+  char received = uart_getc(uart1);
+
+  // Envia o dado recebido para o console
+  printf("\nDado recebido na UART1: %c\n", received);
 }
