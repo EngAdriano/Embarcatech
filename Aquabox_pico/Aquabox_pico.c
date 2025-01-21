@@ -3,9 +3,6 @@
 #include "hardware/i2c.h"
 #include "hardware/timer.h"
 
-// I2C defines
-// This example will use I2C0 on GPIO20 (SDA) and GPIO21(SCL) running at 100KHz.
-// Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
 //#define I2C_PORT i2c0
 #define I2C_SDA 20
 #define I2C_SCL 21
