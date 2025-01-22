@@ -22,9 +22,39 @@
 #define LCD_CMD 0
 #define LCD_DATA 1
 
+// Definições gerais
+#define OFFSET_ASCII 48
+#define CUMBUCO "AQUABOX  CUMBUCO"
+
+//Estrutura para controle do relógio
+struct tempo
+{
+    uint8_t segundos;
+    uint8_t minutos;
+    uint8_t horas;
+    uint8_t diaSemana;
+    uint8_t dia;
+    uint8_t mes;
+    uint8_t ano;
+};
+
+//Estrutura para controle da irrigação
+struct irriga
+{
+    uint8_t hora;
+    uint8_t minutos;
+    bool dia_da_semana[7];
+    uint8_t duracao;
+};
+
+
+
 // Variáveis
-uint8_t dadosHora[7];
 int segundos;
+
+// Variáveis a partir de estruturas
+struct tempo relogio_rtc;
+struct irriga hora_Irrigar;
 
 
 // Protótipo das funções
@@ -40,7 +70,8 @@ int bcd_decimal(int valor);
 void set_rtc_time(uint8_t segundo, uint8_t minuto, uint8_t hora, uint8_t dia, uint8_t diaMes, uint8_t mes, uint8_t ano);
 void get_rtc_time();
 void init_i2c();
-void convert_to_characters(int num);
+void converte_para_caracteres(int num);
+void relogio ();
 static void lcd_send_nibble(uint8_t nibble, uint8_t mode);
 static void lcd_send(uint8_t value, uint8_t mode);
 
@@ -56,23 +87,76 @@ int main()
 
     // Seta o relógio RTC para 21/01/2021
     set_rtc_time(0, 30, 10, 2, 21, 1, 25);  // 21/01/2025 - 10:30:00
-
     
-    lcd_escreve_string("AQUABOX  CUMBUCO");
+    lcd_escreve_string(CUMBUCO);
     lcd_set_cursor(2,1);
     lcd_escreve_string("Versao:  1.0");
     sleep_ms(5000);
     lcd_limpa();
-     lcd_escreve_char('A');
 
     while (true) 
     {
-        int seg = (bcd_decimal(dadosHora[0]));
-        convert_to_characters(seg);
-        get_rtc_time();
+        //int seg = (bcd_decimal(relogio_rtc.segundos));
+        //convert_to_characters(seg);
+        //get_rtc_time();
+        lcd_set_cursor(0,0);
+        lcd_escreve_string(CUMBUCO);
+        relogio();
         sleep_ms(1000);
     }
 }
+
+void relogio ()
+{
+    get_rtc_time();
+
+    char dia_dezena = (relogio_rtc.dia/10) + OFFSET_ASCII;
+    char dia_unidade = (relogio_rtc.dia%10) + OFFSET_ASCII;
+    char mes_dezena = (relogio_rtc.mes/10) + OFFSET_ASCII;
+    char mes_unidade = (relogio_rtc.mes%10) + OFFSET_ASCII;
+    char segundo_dezena = (relogio_rtc.segundos/10) + OFFSET_ASCII;
+    char segundo_unidade = (relogio_rtc.segundos%10) + OFFSET_ASCII;
+    char minuto_dezena = (relogio_rtc.minutos/10) + OFFSET_ASCII;
+    char minuto_unidade = (relogio_rtc.minutos%10) + OFFSET_ASCII;
+    char hora_dezena = (relogio_rtc.horas/10) + OFFSET_ASCII;
+    char hora_unidade = (relogio_rtc.horas%10) + OFFSET_ASCII;
+
+    lcd_set_cursor(0,1);
+    lcd_escreve_char(dia_dezena);
+    lcd_escreve_char(dia_unidade);
+    lcd_escreve_char('/');
+    lcd_escreve_char(mes_dezena);
+    lcd_escreve_char(mes_unidade);
+    lcd_escreve_char(' ');
+    lcd_escreve_char('-');
+    lcd_escreve_char(' ');
+    lcd_escreve_char(hora_dezena);
+    lcd_escreve_char(hora_unidade);
+    lcd_escreve_char(':');
+    lcd_escreve_char(minuto_dezena);
+    lcd_escreve_char(minuto_unidade);
+    lcd_escreve_char(':');
+    lcd_escreve_char(segundo_dezena);
+    lcd_escreve_char(segundo_unidade);
+
+
+}
+
+void converte_para_caracteres(int num) {
+    if (num < 0 || num > 59) {
+        printf("Número fora do intervalo\n");
+        return;
+    }
+
+    // Converte o número em caracteres e imprime
+    char result[3];
+    snprintf(result, sizeof(result), "%02d", num);
+    //printf("Número convertido em caracteres: %s\n", result);
+    lcd_escreve_char(result[0]);
+
+
+}
+
 
 int64_t alarm_callback(alarm_id_t id, void *user_data) 
 {
@@ -204,6 +288,7 @@ void set_rtc_time(uint8_t segundo, uint8_t minuto, uint8_t hora, uint8_t dia, ui
 // Função para recuperar a data e hora do DS1307
 void get_rtc_time() 
 {
+  uint8_t dadosHora[7];
   uint8_t registroInicial = 0x00;
 
   // Escreve o valor do registro inicial
@@ -213,17 +298,16 @@ void get_rtc_time()
   i2c_read_blocking(i2c0, DS1307_ADDRESS, dadosHora, 7, false);
 
   // Faz as conversões para facilitar a impressão no console
-  int segundos = bcd_decimal(dadosHora[0] & 0x7F);  
-  int minutos = bcd_decimal(dadosHora[1]);
-  int hora = bcd_decimal(dadosHora[2]);
-  int dia = bcd_decimal(dadosHora[3]);
-  int diaMes = bcd_decimal(dadosHora[4]);
-  int mes = bcd_decimal(dadosHora[5]);
-  int ano = bcd_decimal(dadosHora[6]);
+  relogio_rtc.segundos = bcd_decimal(dadosHora[0] & 0x7F);  
+  relogio_rtc.minutos = bcd_decimal(dadosHora[1]);
+  relogio_rtc.horas = bcd_decimal(dadosHora[2]);
+  relogio_rtc.diaSemana = bcd_decimal(dadosHora[3]);
+  relogio_rtc.dia = bcd_decimal(dadosHora[4]);
+  relogio_rtc.mes = bcd_decimal(dadosHora[5]);
+  relogio_rtc.ano = bcd_decimal(dadosHora[6]);
 
-  // mostra os valores no console
-  printf("Data: %02d/%02d/20%02d - ", diaMes, mes, ano);
-  printf("Hora: %02d:%02d:%02d\n", hora, minutos, segundos);
+  //printf("Data: %02d/%02d/20%02d - ", relogio_rtc.dia, relogio_rtc.mes, relogio_rtc.ano);
+  //printf("Hora: %02d:%02d:%02d\n", relogio_rtc.horas, relogio_rtc.minutos, relogio_rtc.segundos);
 }
 
 // Inicializa o I2C no Raspberry Pi Pico W
@@ -237,17 +321,5 @@ void init_i2c()
 }
 
 
-void convert_to_characters(int num) {
-    if (num < 0 || num > 59) {
-        printf("Número fora do intervalo\n");
-        return;
-    }
-
-    // Converte o número em caracteres e imprime
-    char result[3];
-    snprintf(result, sizeof(result), "%02d", num);
-    //printf("Número convertido em caracteres: %s\n", result);
-    lcd_escreve_char(result[0]);
-}
 
 
