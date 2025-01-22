@@ -50,7 +50,7 @@ struct irriga
 
 
 // Variáveis
-int segundos;
+int8_t funcao_ativa = 0;
 
 // Variáveis a partir de estruturas
 struct tempo relogio_rtc;
@@ -74,6 +74,7 @@ void converte_para_caracteres(int num);
 void relogio ();
 static void lcd_send_nibble(uint8_t nibble, uint8_t mode);
 static void lcd_send(uint8_t value, uint8_t mode);
+void estado_0();
 
 int main()
 {
@@ -96,14 +97,25 @@ int main()
 
     while (true) 
     {
-        //int seg = (bcd_decimal(relogio_rtc.segundos));
-        //convert_to_characters(seg);
-        //get_rtc_time();
-        lcd_set_cursor(0,0);
-        lcd_escreve_string(CUMBUCO);
-        relogio();
-        sleep_ms(1000);
+        switch (funcao_ativa)
+        {
+        case 0:
+            estado_0();
+            break;
+        
+        default:
+            break;
+        }
+        
     }
+}
+
+void estado_0()
+{
+    lcd_set_cursor(0,0);
+    lcd_escreve_string(CUMBUCO);
+    relogio();
+    sleep_ms(1000);
 }
 
 void relogio ()
