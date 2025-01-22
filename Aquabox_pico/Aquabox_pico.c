@@ -10,7 +10,7 @@
 // Endereço I2C do DS1307
 #define DS1307_ADDRESS 0x68
 
-// Defina os pinos do LCD
+// Defição dos pinos do LCD
 #define LCD_RS 2
 #define LCD_E  3
 #define LCD_D4 4
@@ -22,9 +22,19 @@
 #define LCD_CMD 0
 #define LCD_DATA 1
 
+// Definição do pinos do relés
+#define BOMBA   22
+#define SETOR_2 26
+#define SETOR_1 27
+#define CAIXA   28
+
+//Definição dos pinos do botões
+
 // Definições gerais
 #define OFFSET_ASCII 48
 #define CUMBUCO "AQUABOX  CUMBUCO"
+#define OFF     0
+#define ON      1
 
 //Estrutura para controle do relógio
 struct tempo
@@ -60,6 +70,7 @@ struct irriga hora_Irrigar;
 // Protótipo das funções
 //int64_t alarm_callback(alarm_id_t id, void *user_data);
 void lcd_init();
+void init_gpio();
 void lcd_limpa();
 void lcd_home();
 void lcd_set_cursor(uint8_t col, uint8_t row);
@@ -85,6 +96,9 @@ int main()
     init_i2c();
     // Inicializa display LCD 16x2
     lcd_init();
+
+    //Inicialização dos gpios digitais
+    init_gpio();
 
     // Seta o relógio RTC para 21/01/2021
     set_rtc_time(0, 30, 10, 2, 21, 1, 25);  // 21/01/2025 - 10:30:00
@@ -165,8 +179,25 @@ void converte_para_caracteres(int num) {
     snprintf(result, sizeof(result), "%02d", num);
     //printf("Número convertido em caracteres: %s\n", result);
     lcd_escreve_char(result[0]);
+}
 
+void init_gpio()
+{
+    gpio_init(BOMBA);
+    gpio_set_dir(BOMBA, GPIO_OUT);
+    gpio_put(BOMBA, OFF);
 
+    gpio_init(SETOR_1);
+    gpio_set_dir(SETOR_1, GPIO_OUT);
+    gpio_put(SETOR_1, OFF);
+
+    gpio_init(SETOR_2);
+    gpio_set_dir(SETOR_2, GPIO_OUT);
+    gpio_put(SETOR_2, OFF);
+
+    gpio_init(CAIXA);
+    gpio_set_dir(CAIXA, GPIO_OUT);
+    gpio_put(CAIXA, OFF);
 }
 
 
