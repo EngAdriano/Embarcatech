@@ -106,7 +106,7 @@ int main()
     lcd_escreve_string(CUMBUCO);
     lcd_set_cursor(2,1);
     lcd_escreve_string("Versao:  1.0");
-    sleep_ms(5000);
+    sleep_ms(2000);
     lcd_limpa();
 
     while (true) 
