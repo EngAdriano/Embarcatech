@@ -64,23 +64,22 @@ struct irriga
     uint8_t duracao;
 };
 
-
-
 // Variáveis
 int8_t funcao_ativa = 0;
 volatile bool nivel_baixo_flag = false;
 volatile bool nivel_alto_flag = false;
 bool enchendo_flag = false;
+bool irrigando_flag = false;
 
 // Variáveis a partir de estruturas
 struct tempo relogio_rtc;
 struct irriga hora_Irrigar;
 
-
 // Protótipo das funções
 //int64_t alarm_callback(alarm_id_t id, void *user_data);
 void lcd_init();
 void init_gpio();
+void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao);
 void lcd_limpa();
 void lcd_home();
 void lcd_set_cursor(uint8_t col, uint8_t row);
@@ -96,8 +95,10 @@ void relogio ();
 static void lcd_send_nibble(uint8_t nibble, uint8_t mode);
 static void lcd_send(uint8_t value, uint8_t mode);
 bool nivel_timer_callback(struct repeating_timer *t);
+void ativa_flag_irrigacao();
 void estado_0();
 void estado_1();
+void estado_2();
 
 int main()
 {
@@ -111,6 +112,9 @@ int main()
 
     //Inicialização dos gpios digitais
     init_gpio();
+
+    // Inicializa dados de horário para irrigação
+    init_irriga(10, 31, 2);     //Ajustado para irrigar as 10:32 pelo tempo de 2 minutos
 
     // Inicializa os temporizadores de debounce
     ultima_vez_nivel_baixo = get_absolute_time();
@@ -141,6 +145,10 @@ int main()
             estado_1();
             break;
         
+        case 2:
+            estado_2();
+            break;
+        
         default:
             break;
         }
@@ -155,10 +163,17 @@ void estado_0()
 
     relogio();
 
-    if(nivel_baixo_flag == true)
+    if((nivel_baixo_flag == true) && (irrigando_flag == false))
     {
         funcao_ativa = 1;
         enchendo_flag = true;
+    }
+
+    ativa_flag_irrigacao();
+
+    if(irrigando_flag == true && enchendo_flag == false)
+    {
+        funcao_ativa = 2;
     }
 }
 
@@ -172,21 +187,87 @@ void estado_1()
 
     while(true)
     {
+        ativa_flag_irrigacao();
         nivel_baixo_flag = false;
         gpio_put(CAIXA, ON);            // Liga a vávula da caixa d'água
-        sleep_ms(2000);                 // Espera um tempo
+        sleep_ms(1000);                 // Espera um tempo
         gpio_put(BOMBA, ON);            // Liga a bomba d'água
 
         if(nivel_alto_flag == true)
         {
             gpio_put(BOMBA, OFF);            // Desliga a bomba d'água
-            sleep_ms(2000);                 // Espera um tempo
+            sleep_ms(1000);                 // Espera um tempo
             gpio_put(CAIXA, OFF);            // desliga a vávula da caixa d'água
             funcao_ativa = 0;
             nivel_alto_flag = false;
             enchendo_flag = false;
             return;
         }
+    }
+}
+
+void estado_2()
+{
+    bool s1 = true;         // Habilita setor 1
+    bool s2 = false;        // Habilita setor 2
+    static int contador = 0;
+
+    lcd_limpa();
+    lcd_set_cursor(0,0);
+    lcd_escreve_string(CUMBUCO);
+    lcd_set_cursor(2,1);
+    lcd_escreve_string("Irrigando...");
+
+    while(true)
+    {
+        if ((s1 == true) && (irrigando_flag == true))
+        {
+            lcd_set_cursor(0,1);
+            lcd_escreve_string("Irrigando setor1");
+            gpio_put(SETOR_1, ON);
+            sleep_ms(1000);
+            gpio_put(BOMBA, ON);
+            if(contador == hora_Irrigar.duracao)
+            {
+                s2 = true;
+                s1 = false;
+                contador =0;
+                gpio_put(BOMBA, OFF);
+                sleep_ms(1000);
+                gpio_put(SETOR_1, OFF);
+            }
+            contador++;
+        } 
+
+        if ((s2 == true) && (irrigando_flag == true))
+        {
+            lcd_set_cursor(0,1);
+            lcd_escreve_string("Irrigando setor2");
+            gpio_put(SETOR_2, ON);
+            sleep_ms(1000);
+            gpio_put(BOMBA, ON);
+            if(contador == hora_Irrigar.duracao)
+            {
+                s2 = false;
+                s1 = true;
+                gpio_put(BOMBA, OFF);
+                sleep_ms(1000);
+                gpio_put(SETOR_2, OFF);
+                funcao_ativa = 0;
+                irrigando_flag = false;
+                return;
+            }
+            contador++;
+        }      
+
+    }
+}
+
+void ativa_flag_irrigacao()
+{
+    if((hora_Irrigar.hora == relogio_rtc.horas) && (hora_Irrigar.minutos == relogio_rtc.minutos))
+    {
+        irrigando_flag = true;
     }
 }
 
@@ -264,6 +345,18 @@ void init_gpio()
     gpio_init(NIVEL_BAIXO);
     gpio_set_dir(NIVEL_BAIXO, GPIO_IN);
     gpio_pull_up(NIVEL_BAIXO);
+}
+
+void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao)
+{
+    hora_Irrigar.hora = hora;
+    hora_Irrigar.minutos = minutos;
+    hora_Irrigar.duracao = duracao*60;
+    
+    for(int i = 0; i < 7; i++)
+    {
+        hora_Irrigar.dia_da_semana[i] = 1;
+    }
 }
 
 
