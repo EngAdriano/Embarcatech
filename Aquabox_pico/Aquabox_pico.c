@@ -28,7 +28,14 @@
 #define SETOR_1 27
 #define CAIXA   28
 
-//Definição dos pinos do botões
+//Definição dos pinos dos sensores
+#define NIVEL_BAIXO 19
+#define NIVEL_ALTO 18
+#define DELAY_DEBOUNCE 50       //50 milissegundos
+
+// Temporizadores de debounce
+absolute_time_t ultima_vez_nivel_baixo;
+absolute_time_t ultima_vez_nivel_alto;
 
 // Definições gerais
 #define OFFSET_ASCII 48
@@ -61,6 +68,9 @@ struct irriga
 
 // Variáveis
 int8_t funcao_ativa = 0;
+volatile bool nivel_baixo_flag = false;
+volatile bool nivel_alto_flag = false;
+bool enchendo_flag = false;
 
 // Variáveis a partir de estruturas
 struct tempo relogio_rtc;
@@ -85,7 +95,9 @@ void converte_para_caracteres(int num);
 void relogio ();
 static void lcd_send_nibble(uint8_t nibble, uint8_t mode);
 static void lcd_send(uint8_t value, uint8_t mode);
+bool nivel_timer_callback(struct repeating_timer *t);
 void estado_0();
+void estado_1();
 
 int main()
 {
@@ -99,6 +111,14 @@ int main()
 
     //Inicialização dos gpios digitais
     init_gpio();
+
+    // Inicializa os temporizadores de debounce
+    ultima_vez_nivel_baixo = get_absolute_time();
+    ultima_vez_nivel_alto = get_absolute_time();
+
+    // Configurar o timer
+    struct repeating_timer timer;
+    add_repeating_timer_ms(100, nivel_timer_callback, NULL, &timer);
 
     // Seta o relógio RTC para 21/01/2021
     set_rtc_time(0, 30, 10, 2, 21, 1, 25);  // 21/01/2025 - 10:30:00
@@ -117,6 +137,10 @@ int main()
             estado_0();
             break;
         
+        case 1:
+            estado_1();
+            break;
+        
         default:
             break;
         }
@@ -128,8 +152,34 @@ void estado_0()
 {
     lcd_set_cursor(0,0);
     lcd_escreve_string(CUMBUCO);
+
     relogio();
-    sleep_ms(1000);
+
+    if(nivel_baixo_flag == true)
+    {
+        funcao_ativa = 1;
+    }
+}
+
+void estado_1()
+{
+    lcd_limpa();
+    lcd_set_cursor(0,0);
+    lcd_escreve_string(CUMBUCO);
+    lcd_set_cursor(1,1);
+    lcd_escreve_string("Enchendo caixa");
+
+    while(true)
+    {
+        nivel_baixo_flag = false;
+
+        if(nivel_alto_flag == true)
+        {
+            funcao_ativa = 0;
+            nivel_alto_flag = false;
+            return;
+        }
+    }
 }
 
 void relogio ()
@@ -198,6 +248,14 @@ void init_gpio()
     gpio_init(CAIXA);
     gpio_set_dir(CAIXA, GPIO_OUT);
     gpio_put(CAIXA, OFF);
+
+    gpio_init(NIVEL_ALTO);
+    gpio_set_dir(NIVEL_ALTO, GPIO_IN);
+    gpio_pull_up(NIVEL_ALTO);
+
+    gpio_init(NIVEL_BAIXO);
+    gpio_set_dir(NIVEL_BAIXO, GPIO_IN);
+    gpio_pull_up(NIVEL_BAIXO);
 }
 
 
@@ -363,6 +421,23 @@ void init_i2c()
   gpio_pull_up(I2C_SCL);
 }
 
+// Funções Callback
+// Função de callback para o timer
+bool nivel_timer_callback(struct repeating_timer *t)
+{
+    // Verifica o estado do sensor de nível baixo
+    if(!gpio_get(NIVEL_BAIXO) && absolute_time_diff_us(ultima_vez_nivel_baixo, get_absolute_time()) >= DELAY_DEBOUNCE * 1000)
+    {
+        nivel_baixo_flag = true;
+        ultima_vez_nivel_baixo = get_absolute_time();
+    }
 
+    // Verifica o estado do sensor de nível baixo
+    if(!gpio_get(NIVEL_ALTO) && absolute_time_diff_us(ultima_vez_nivel_alto, get_absolute_time()) >= DELAY_DEBOUNCE * 1000)
+    {
+        nivel_alto_flag = true;
+        ultima_vez_nivel_alto = get_absolute_time();
+    }
 
-
+    return true;
+}
