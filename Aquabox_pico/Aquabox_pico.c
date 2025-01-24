@@ -158,6 +158,7 @@ void estado_0()
     if(nivel_baixo_flag == true)
     {
         funcao_ativa = 1;
+        enchendo_flag = true;
     }
 }
 
@@ -172,11 +173,18 @@ void estado_1()
     while(true)
     {
         nivel_baixo_flag = false;
+        gpio_put(CAIXA, ON);            // Liga a vávula da caixa d'água
+        sleep_ms(2000);                 // Espera um tempo
+        gpio_put(BOMBA, ON);            // Liga a bomba d'água
 
         if(nivel_alto_flag == true)
         {
+            gpio_put(BOMBA, OFF);            // Desliga a bomba d'água
+            sleep_ms(2000);                 // Espera um tempo
+            gpio_put(CAIXA, OFF);            // desliga a vávula da caixa d'água
             funcao_ativa = 0;
             nivel_alto_flag = false;
+            enchendo_flag = false;
             return;
         }
     }
