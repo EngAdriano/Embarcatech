@@ -28,14 +28,24 @@
 #define SETOR_1 27
 #define CAIXA   28
 
-//Definição dos pinos dos sensores
+// Definição dos pinos dos sensores
 #define NIVEL_BAIXO 19
 #define NIVEL_ALTO 18
 #define DELAY_DEBOUNCE 50       //50 milissegundos
 
+// Definição dos botões
+#define BOTAO_MENU 8
+#define BOTAO_RETORNO 9
+#define BOTAO_SELECAO 10
+#define BOTAO_DADO 11
+
 // Temporizadores de debounce
 absolute_time_t ultima_vez_nivel_baixo;
 absolute_time_t ultima_vez_nivel_alto;
+absolute_time_t ultima_vez_menu;
+absolute_time_t ultima_vez_retorno;
+absolute_time_t ultima_vez_selecao;
+absolute_time_t ultima_vez_dado;
 
 // Definições gerais
 #define OFFSET_ASCII 48
@@ -68,6 +78,10 @@ struct irriga
 int8_t funcao_ativa = 0;
 volatile bool nivel_baixo_flag = false;
 volatile bool nivel_alto_flag = false;
+volatile bool botao_menu_flag = false;
+volatile bool botao_retorno_flag = false;
+volatile bool botao_selecao_flag = false;
+volatile bool botao_dado_flag = false;
 bool enchendo_flag = false;
 bool irrigando_flag = false;
 
@@ -99,6 +113,7 @@ void ativa_flag_irrigacao();
 void estado_0();
 void estado_1();
 void estado_2();
+void estado_3();
 
 int main()
 {
@@ -114,7 +129,7 @@ int main()
     init_gpio();
 
     // Inicializa dados de horário para irrigação
-    init_irriga(10, 31, 2);     //Ajustado para irrigar as 10:32 pelo tempo de 2 minutos
+    init_irriga(10, 31, 1);     //Ajustado para irrigar as 10:32 pelo tempo de 2 minutos
 
     // Inicializa os temporizadores de debounce
     ultima_vez_nivel_baixo = get_absolute_time();
@@ -149,6 +164,10 @@ int main()
             estado_2();
             break;
         
+        case 3:
+            estado_3();
+            break;
+
         default:
             break;
         }
@@ -174,6 +193,11 @@ void estado_0()
     if(irrigando_flag == true && enchendo_flag == false)
     {
         funcao_ativa = 2;
+    }
+
+    if(botao_menu_flag == true)
+    {
+        funcao_ativa = 3;
     }
 }
 
@@ -263,6 +287,24 @@ void estado_2()
     }
 }
 
+void estado_3()
+{
+    lcd_limpa();
+    lcd_set_cursor(0,0);
+    lcd_escreve_string("Config Relogio");
+    lcd_set_cursor(0,1);
+    lcd_escreve_string("00/00/00 - 00:00");
+
+    while (true)
+    {
+        sleep_ms(1000);
+        funcao_ativa = 0;
+        botao_menu_flag = false;
+        return;
+    }
+    
+}
+
 void ativa_flag_irrigacao()
 {
     if((hora_Irrigar.hora == relogio_rtc.horas) && (hora_Irrigar.minutos == relogio_rtc.minutos))
@@ -345,6 +387,22 @@ void init_gpio()
     gpio_init(NIVEL_BAIXO);
     gpio_set_dir(NIVEL_BAIXO, GPIO_IN);
     gpio_pull_up(NIVEL_BAIXO);
+
+    gpio_init(BOTAO_MENU);
+    gpio_set_dir(BOTAO_MENU, GPIO_IN);
+    gpio_pull_up(BOTAO_MENU);
+
+    gpio_init(BOTAO_RETORNO);
+    gpio_set_dir(BOTAO_RETORNO, GPIO_IN);
+    gpio_pull_up(BOTAO_RETORNO);
+
+    gpio_init(BOTAO_SELECAO);
+    gpio_set_dir(BOTAO_SELECAO, GPIO_IN);
+    gpio_pull_up(BOTAO_SELECAO);
+
+    gpio_init(BOTAO_DADO);
+    gpio_set_dir(BOTAO_DADO, GPIO_IN);
+    gpio_pull_up(BOTAO_DADO);
 }
 
 void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao)
@@ -533,11 +591,39 @@ bool nivel_timer_callback(struct repeating_timer *t)
         ultima_vez_nivel_baixo = get_absolute_time();
     }
 
-    // Verifica o estado do sensor de nível baixo
+    // Verifica o estado do sensor de nível baixo 
     if(!gpio_get(NIVEL_ALTO) && absolute_time_diff_us(ultima_vez_nivel_alto, get_absolute_time()) >= DELAY_DEBOUNCE * 1000)
     {
         nivel_alto_flag = true;
         ultima_vez_nivel_alto = get_absolute_time();
+    }
+
+    // Verifica o estado do botão de menu
+    if(!gpio_get(BOTAO_MENU) && absolute_time_diff_us(ultima_vez_menu, get_absolute_time()) >= DELAY_DEBOUNCE * 1000)
+    {
+        botao_menu_flag = true;
+        ultima_vez_menu = get_absolute_time();
+    }
+
+    // Verifica o estado do botão de retorno
+    if(!gpio_get(BOTAO_RETORNO) && absolute_time_diff_us(ultima_vez_retorno, get_absolute_time()) >= DELAY_DEBOUNCE * 1000)
+    {
+        botao_retorno_flag = true;
+        ultima_vez_retorno = get_absolute_time();
+    }
+
+    // Verifica o estado do botão de seleção
+    if(!gpio_get(BOTAO_SELECAO) && absolute_time_diff_us(ultima_vez_selecao, get_absolute_time()) >= DELAY_DEBOUNCE * 1000)
+    {
+        botao_selecao_flag = true;
+        ultima_vez_selecao = get_absolute_time();
+    }
+
+    // Verifica o estado do botão de dado
+    if(!gpio_get(BOTAO_DADO) && absolute_time_diff_us(ultima_vez_dado, get_absolute_time()) >= DELAY_DEBOUNCE * 1000)
+    {
+        botao_dado_flag = true;
+        ultima_vez_dado = get_absolute_time();
     }
 
     return true;
