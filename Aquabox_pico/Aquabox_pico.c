@@ -84,6 +84,7 @@ volatile bool botao_selecao_flag = false;
 volatile bool botao_dado_flag = false;
 bool enchendo_flag = false;
 bool irrigando_flag = false;
+bool configurando_flag = false;
 
 // Variáveis a partir de estruturas
 struct tempo relogio_rtc;
@@ -137,7 +138,7 @@ int main()
 
     // Configurar o timer
     struct repeating_timer timer;
-    add_repeating_timer_ms(100, nivel_timer_callback, NULL, &timer);
+    add_repeating_timer_ms(50, nivel_timer_callback, NULL, &timer);
 
     // Seta o relógio RTC para 21/01/2021
     set_rtc_time(0, 30, 10, 2, 21, 1, 25);  // 21/01/2025 - 10:30:00
@@ -153,19 +154,23 @@ int main()
         switch (funcao_ativa)
         {
         case 0:
-            estado_0();
+            estado_0();     // Espera comandos e mostra relógio
             break;
         
         case 1:
-            estado_1();
+            estado_1();     // Enche a caixa d'água
             break;
         
         case 2:
-            estado_2();
+            estado_2();     // Faz a irrigação no horário definido
             break;
         
         case 3:
-            estado_3();
+            estado_3();     // Entra em modo de configuração
+            break;
+
+        case 4:
+            estado_4();     // Configura o relógio
             break;
 
         default:
@@ -182,7 +187,7 @@ void estado_0()
 
     relogio();
 
-    if((nivel_baixo_flag == true) && (irrigando_flag == false))
+    if((nivel_baixo_flag == true) && (irrigando_flag == false) && (configurando_flag == false))
     {
         funcao_ativa = 1;
         enchendo_flag = true;
@@ -190,13 +195,14 @@ void estado_0()
 
     ativa_flag_irrigacao();
 
-    if(irrigando_flag == true && enchendo_flag == false)
+    if((irrigando_flag == true) && (enchendo_flag == false) && (configurando_flag == false))
     {
         funcao_ativa = 2;
     }
 
     if(botao_menu_flag == true)
     {
+        botao_menu_flag = false;
         funcao_ativa = 3;
     }
 }
@@ -289,20 +295,102 @@ void estado_2()
 
 void estado_3()
 {
+    botao_menu_flag = false;
+    static char opcao_configura = 0;
+
+    configurando_flag = true;
+
     lcd_limpa();
     lcd_set_cursor(0,0);
-    lcd_escreve_string("Config Relogio");
-    lcd_set_cursor(0,1);
-    lcd_escreve_string("00/00/00 - 00:00");
+    lcd_escreve_string(CUMBUCO);
+    lcd_set_cursor(1,1);
+    lcd_escreve_string("CONFIGURACOES");
 
     while (true)
     {
-        sleep_ms(1000);
-        funcao_ativa = 0;
-        botao_menu_flag = false;
-        return;
+        if(botao_retorno_flag)
+        {
+            botao_retorno_flag = false;
+            funcao_ativa = 0;
+            configurando_flag = false;
+            return;
+        }
+
+        // TODO - Achar uma maneira de travar o botão de seleção
+        if(botao_selecao_flag)
+        {
+            botao_selecao_flag = false;
+            opcao_configura++;
+
+            if(opcao_configura > 3)
+            {
+                lcd_limpa();
+                lcd_set_cursor(0,0);
+                lcd_escreve_string(CUMBUCO);
+                lcd_set_cursor(1,1);
+                lcd_escreve_string("CONFIGURACOES");
+                opcao_configura = 0;
+            }
+
+            switch (opcao_configura)
+            {
+            case 1:
+                lcd_limpa();
+                lcd_set_cursor(1,0);
+                lcd_escreve_string("Config Relogio");
+                break;
+
+            case 2:
+                lcd_limpa();
+                lcd_set_cursor(0,0);
+                lcd_escreve_string("Config Irrigacao");
+                break;
+
+            case 3:
+                lcd_limpa();
+                lcd_set_cursor(1,0);
+                lcd_escreve_string("Config  Semana");
+                break;                
+            
+            default:
+                break;
+            }
+        }
+
+        if(botao_dado_flag)
+        {
+            botao_dado_flag = false;
+
+            if(opcao_configura == 1)
+            {
+                funcao_ativa = 4;
+            }
+        }
+
     }
     
+}
+
+void estado_4()
+{
+    lcd_limpa();
+    lcd_set_cursor(1,0);
+    lcd_escreve_string("Config Relogio");
+    lcd_set_cursor(0,1);
+    lcd_escreve_string("00/00/00 - 00/00");
+
+    while(true)
+    {
+        if(botao_retorno_flag)
+        {
+            botao_retorno_flag = false;
+            botao_menu_flag = false;
+            botao_dado_flag = false;
+            funcao_ativa = 0;
+            configurando_flag = false;
+            return;
+        }
+    }
 }
 
 void ativa_flag_irrigacao()
