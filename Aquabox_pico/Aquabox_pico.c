@@ -201,7 +201,7 @@ void estado_0()
 
     ativa_flag_irrigacao();
 
-    if((irrigando_flag == true) && (enchendo_flag == false) && (configurando_flag == false))
+    if((irrigando_flag == true) && (enchendo_flag == false) && (configurando_flag == false) && (hora_Irrigar.dia_da_semana[relogio_rtc.diaSemana] == 1))
     {
         funcao_ativa = 2;
     }
@@ -301,6 +301,13 @@ void estado_2()
 
 void estado_3()
 {
+    int8_t selecao = 0;
+    int8_t dia = 0;
+    int8_t mes = 0;
+    int8_t ano = 0;
+    int8_t hora = 0;
+    int8_t minutos = 0;
+
     lcd_limpa();
     lcd_set_cursor(1,0);
     lcd_escreve_string("Config Relogio");
@@ -326,11 +333,137 @@ void estado_3()
         if(botao_selecao_flag)
         {
             botao_selecao_flag = false;
+            selecao++;
+            if(selecao > 6)
+            {
+                selecao = 0;
+            }
+
+            switch (selecao)
+            {
+            case 1:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string("   Config Dia   ");
+                break;
+
+            case 2:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string("   Config Mes   ");
+                break;
+
+            case 3:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string("   Config Ano   ");
+                break;
+
+            case 4:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string("   Config Hora  ");
+                break;
+
+            case 5: 
+                lcd_set_cursor(0,0);
+                lcd_escreve_string(" Config Minutos ");
+                break;
+
+            case 6:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string(" Salvar Config? ");
+                break;
             
+            default:
+                selecao = 0;
+                lcd_limpa();
+                lcd_set_cursor(1,0);
+                lcd_escreve_string("Config Relogio");
+                lcd_set_cursor(0,1);
+                lcd_escreve_string("00/00/00 - 00/00");
+                break;
+            }
         }
+
+        if(botao_dado_flag)
+        {
+            uint8_t conf_rtc_Display[10];
+            botao_dado_flag = false;
+
+            switch (selecao)
+            {
+            case 1:
+                dia++;
+                if(dia > 31)
+                {
+                    dia = 1;
+                }
+                lcd_set_cursor(0,1);
+                lcd_escreve_char((dia/10) + OFFSET_ASCII);
+                lcd_escreve_char((dia%10) + OFFSET_ASCII);
+                break;
+
+            case 2:
+                mes++;
+                if(mes > 12)
+                {
+                    mes = 1;
+                }
+                lcd_set_cursor(3,1);
+                lcd_escreve_char((mes/10) + OFFSET_ASCII);
+                lcd_escreve_char((mes%10) + OFFSET_ASCII);
+                break;
+
+            case 3:
+                ano++;
+                if(ano > 99)
+                {
+                    ano = 0;
+                }
+                lcd_set_cursor(6,1);
+                lcd_escreve_char((ano/10) + OFFSET_ASCII);
+                lcd_escreve_char((ano%10) + OFFSET_ASCII);
+                break;
+
+            case 4:
+                hora++;
+                if(hora > 23)
+                {
+                    hora = 0;
+                }
+                lcd_set_cursor(11,1);
+                lcd_escreve_char((hora/10) + OFFSET_ASCII);
+                lcd_escreve_char((hora%10) + OFFSET_ASCII);
+                break;
+
+            case 5:
+                minutos++;
+                if(minutos > 59)
+                {
+                    minutos = 0;
+                }
+                lcd_set_cursor(14,1);
+                lcd_escreve_char((minutos/10) + OFFSET_ASCII);
+                lcd_escreve_char((minutos%10) + OFFSET_ASCII);
+                break;
+
+            case 6:
+                conf_rtc_Display[0] = 0x00;
+                conf_rtc_Display[1] = decimal_bcd(0) & 0x7F;
+                conf_rtc_Display[2] = decimal_bcd(minutos);
+                conf_rtc_Display[3] = decimal_bcd(hora);
+                conf_rtc_Display[4] = decimal_bcd(0);
+                conf_rtc_Display[5] = decimal_bcd(dia);
+                conf_rtc_Display[6] = decimal_bcd(mes);
+                conf_rtc_Display[7] = decimal_bcd(ano);
+                i2c_write_blocking(i2c0, DS1307_ADDRESS, conf_rtc_Display, 8, false);
+                funcao_ativa = 0;
+                return;
+                break;
+            
+            default:
+                break;
+            }
+        }
+
     }
-       
-    
 }
 
 void estado_4()
