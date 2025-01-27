@@ -454,6 +454,7 @@ void estado_3()
                 conf_rtc_Display[6] = decimal_bcd(mes);
                 conf_rtc_Display[7] = decimal_bcd(ano);
                 i2c_write_blocking(i2c0, DS1307_ADDRESS, conf_rtc_Display, 8, false);
+                selecao = 0;
                 funcao_ativa = 0;
                 return;
                 break;
@@ -468,11 +469,16 @@ void estado_3()
 
 void estado_4()
 {
+    int8_t selecao = 0;
+    int8_t hora = 0;
+    int8_t minutos = 0;
+    int8_t duracao = 0;
+
     lcd_limpa();
     lcd_set_cursor(0,0);
     lcd_escreve_string("Config Irrigacao");
     lcd_set_cursor(0,1);
-    lcd_escreve_string("H:00 M:00 - D:00");
+    lcd_escreve_string(" H-00:00   D-00 ");
 
     while(true)
     {
@@ -488,6 +494,102 @@ void estado_4()
             botao_menu_flag = false;
             funcao_ativa = 5;
             return;
+        }
+
+        if(botao_selecao_flag)
+        {
+            botao_selecao_flag = false;
+            selecao++;
+            if(selecao > 4)
+            {
+                selecao = 0;
+            }
+
+            switch (selecao)
+            {
+            
+            case 1:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string("   Config Hora   ");
+                break;
+
+            case 2:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string(" Config Minutos  ");
+                break;
+
+            case 3:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string(" Config Duracao  ");
+                break;
+
+            case 4:
+                lcd_set_cursor(0,0);
+                lcd_escreve_string(" Salvar Config?  ");
+                break;
+
+            default:
+                selecao = 0;
+                lcd_limpa();
+                lcd_set_cursor(0,0);
+                lcd_escreve_string("Config Irrigacao");
+                lcd_set_cursor(0,1);
+                lcd_escreve_string(" H-00:00   D-00 ");
+                break;
+            }
+        }
+
+        if(botao_dado_flag)
+        {
+            uint8_t conf_irriga_Display[10];
+            botao_dado_flag = false;
+
+            switch (selecao)
+            {
+            case 1:
+                hora++;
+                if(hora > 23)
+                {
+                    hora = 0;
+                }
+                lcd_set_cursor(3,1);
+                lcd_escreve_char((hora/10) + OFFSET_ASCII);
+                lcd_escreve_char((hora%10) + OFFSET_ASCII);
+                break;
+
+            case 2:
+                minutos++;
+                if(minutos > 59)
+                {
+                    minutos = 0;
+                }
+                lcd_set_cursor(6,1);
+                lcd_escreve_char((minutos/10) + OFFSET_ASCII);
+                lcd_escreve_char((minutos%10) + OFFSET_ASCII);
+                break;
+
+            case 3:
+                duracao++;
+                if(duracao > 59)
+                {
+                    duracao = 0;
+                }
+                lcd_set_cursor(13,1);
+                lcd_escreve_char((duracao/10) + OFFSET_ASCII);
+                lcd_escreve_char((duracao%10) + OFFSET_ASCII);
+                break;
+
+            case 4://Salvar configuração
+                hora_Irrigar.hora = hora;
+                hora_Irrigar.minutos = minutos;
+                hora_Irrigar.duracao = duracao*60;
+                funcao_ativa = 0;
+                return;
+                break;
+            
+            default:
+                break;
+            }
         }
     }
 }
