@@ -115,6 +115,8 @@ void estado_0();
 void estado_1();
 void estado_2();
 void estado_3();
+void estado_4();
+void estado_5();
 
 int main()
 {
@@ -138,7 +140,7 @@ int main()
 
     // Configurar o timer
     struct repeating_timer timer;
-    add_repeating_timer_ms(50, nivel_timer_callback, NULL, &timer);
+    add_repeating_timer_ms(100, nivel_timer_callback, NULL, &timer);
 
     // Seta o relógio RTC para 21/01/2021
     set_rtc_time(0, 30, 10, 2, 21, 1, 25);  // 21/01/2025 - 10:30:00
@@ -171,6 +173,10 @@ int main()
 
         case 4:
             estado_4();     // Configura o relógio
+            break;
+
+        case 5:
+            estado_5();     // Configura a semana da irrigação
             break;
 
         default:
@@ -295,16 +301,11 @@ void estado_2()
 
 void estado_3()
 {
-    botao_menu_flag = false;
-    static char opcao_configura = 0;
-
-    configurando_flag = true;
-
     lcd_limpa();
-    lcd_set_cursor(0,0);
-    lcd_escreve_string(CUMBUCO);
-    lcd_set_cursor(1,1);
-    lcd_escreve_string("CONFIGURACOES");
+    lcd_set_cursor(1,0);
+    lcd_escreve_string("Config Relogio");
+    lcd_set_cursor(0,1);
+    lcd_escreve_string("00/00/00 - 00/00");
 
     while (true)
     {
@@ -312,82 +313,73 @@ void estado_3()
         {
             botao_retorno_flag = false;
             funcao_ativa = 0;
-            configurando_flag = false;
             return;
         }
 
-        // TODO - Achar uma maneira de travar o botão de seleção
+        if(botao_menu_flag)
+        {
+            botao_menu_flag = false;
+            funcao_ativa = 4;
+            return;
+        }
+
         if(botao_selecao_flag)
         {
             botao_selecao_flag = false;
-            opcao_configura++;
-
-            if(opcao_configura > 3)
-            {
-                lcd_limpa();
-                lcd_set_cursor(0,0);
-                lcd_escreve_string(CUMBUCO);
-                lcd_set_cursor(1,1);
-                lcd_escreve_string("CONFIGURACOES");
-                opcao_configura = 0;
-            }
-
-            switch (opcao_configura)
-            {
-            case 1:
-                lcd_limpa();
-                lcd_set_cursor(1,0);
-                lcd_escreve_string("Config Relogio");
-                break;
-
-            case 2:
-                lcd_limpa();
-                lcd_set_cursor(0,0);
-                lcd_escreve_string("Config Irrigacao");
-                break;
-
-            case 3:
-                lcd_limpa();
-                lcd_set_cursor(1,0);
-                lcd_escreve_string("Config  Semana");
-                break;                
             
-            default:
-                break;
-            }
         }
-
-        if(botao_dado_flag)
-        {
-            botao_dado_flag = false;
-
-            if(opcao_configura == 1)
-            {
-                funcao_ativa = 4;
-            }
-        }
-
     }
+       
     
 }
 
 void estado_4()
 {
     lcd_limpa();
-    lcd_set_cursor(1,0);
-    lcd_escreve_string("Config Relogio");
+    lcd_set_cursor(0,0);
+    lcd_escreve_string("Config Irrigacao");
     lcd_set_cursor(0,1);
-    lcd_escreve_string("00/00/00 - 00/00");
+    lcd_escreve_string("H:00 M:00 - D:00");
 
     while(true)
     {
         if(botao_retorno_flag)
         {
             botao_retorno_flag = false;
-            botao_menu_flag = false;
-            botao_dado_flag = false;
             funcao_ativa = 0;
-            configurando_flag = false;
+            return;
+        }
+
+        if(botao_menu_flag)
+        {
+            botao_menu_flag = false;
+            funcao_ativa = 5;
+            return;
+        }
+    }
+}
+
+void estado_5()
+{
+    lcd_limpa();
+    lcd_set_cursor(1,0);
+    lcd_escreve_string("Config Semana");
+    lcd_set_cursor(1,1);
+    lcd_escreve_string("D1S1T1Q1Q1S1S1");
+
+    while(true)
+    {
+        if(botao_retorno_flag)
+        {
+            botao_retorno_flag = false;
+            funcao_ativa = 0;
+            return;
+        }
+
+        if(botao_menu_flag)
+        {
+            botao_menu_flag = false;
+            funcao_ativa = 0;
             return;
         }
     }
