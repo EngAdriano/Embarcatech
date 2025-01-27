@@ -1,3 +1,12 @@
+//*******************************************************************************************************************
+// Versão liberada em: 27/01/25
+// Autor: José Adriano
+// Descrição: Projeto Final - Sistema de Irrigação e Controle de Caixa D'água Automatizado
+// Configurada para 27/01/2025 - 16:58:00
+// Executa a automação de um sistema de irrigação e controle de caixa d'água, com a possibilidade de configurar o horário
+// de irrigação, a duração da irrigação e os dias da semana que a irrigação deve ocorrer. O sistema também controla o nível
+// da caixa d'água e a bomba d'água. O sistema é controlado por um Raspberry Pi Pico W e um display LCD 16x2.
+//*******************************************************************************************************************
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
@@ -132,7 +141,7 @@ int main()
     init_gpio();
 
     // Inicializa dados de horário para irrigação
-    init_irriga(10, 32, 1);     //Ajustado para irrigar as 10:32 pelo tempo de 1 minutos
+    init_irriga(17, 00, 2);     //Ajustado para irrigar as 17:00 pelo tempo de 2 minutos
 
     // Inicializa os temporizadores de debounce
     ultima_vez_nivel_baixo = get_absolute_time();
@@ -143,7 +152,7 @@ int main()
     add_repeating_timer_ms(100, nivel_timer_callback, NULL, &timer);
 
     // Seta o relógio RTC para 21/01/2021
-    set_rtc_time(0, 30, 10, 2, 21, 1, 25);  // 21/01/2025 - 10:30:00
+    set_rtc_time(0, 58, 16, 2, 27, 1, 25);  // 21/01/2025 - 10:30:00
     
     lcd_escreve_string(CUMBUCO);
     lcd_set_cursor(2,1);
