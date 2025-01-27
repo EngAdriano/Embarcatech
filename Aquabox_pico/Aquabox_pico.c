@@ -263,7 +263,7 @@ void estado_2()
             gpio_put(SETOR_1, ON);
             sleep_ms(1000);
             gpio_put(BOMBA, ON);
-            if(contador == hora_Irrigar.duracao)
+            if(contador >= hora_Irrigar.duracao)
             {
                 s2 = true;
                 s1 = false;
@@ -282,7 +282,7 @@ void estado_2()
             gpio_put(SETOR_2, ON);
             sleep_ms(1000);
             gpio_put(BOMBA, ON);
-            if(contador == hora_Irrigar.duracao)
+            if(contador >= hora_Irrigar.duracao)
             {
                 s2 = false;
                 s1 = true;
