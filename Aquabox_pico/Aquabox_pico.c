@@ -74,7 +74,7 @@ struct irriga
     uint8_t duracao;
 };
 
-// Variáveis
+// Variáveis globais
 int8_t funcao_ativa = 0;
 volatile bool nivel_baixo_flag = false;
 volatile bool nivel_alto_flag = false;
@@ -91,7 +91,6 @@ struct tempo relogio_rtc;
 struct irriga hora_Irrigar;
 
 // Protótipo das funções
-//int64_t alarm_callback(alarm_id_t id, void *user_data);
 void lcd_init();
 void init_gpio();
 void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao);
@@ -111,6 +110,7 @@ static void lcd_send_nibble(uint8_t nibble, uint8_t mode);
 static void lcd_send(uint8_t value, uint8_t mode);
 bool nivel_timer_callback(struct repeating_timer *t);
 void ativa_flag_irrigacao();
+void mostra_semana();
 void estado_0();
 void estado_1();
 void estado_2();
@@ -132,7 +132,7 @@ int main()
     init_gpio();
 
     // Inicializa dados de horário para irrigação
-    init_irriga(10, 31, 1);     //Ajustado para irrigar as 10:32 pelo tempo de 2 minutos
+    init_irriga(10, 32, 1);     //Ajustado para irrigar as 10:32 pelo tempo de 1 minutos
 
     // Inicializa os temporizadores de debounce
     ultima_vez_nivel_baixo = get_absolute_time();
@@ -151,6 +151,11 @@ int main()
     sleep_ms(2000);
     lcd_limpa();
 
+    //get_rtc_time();
+    //printf("Hora: %d:%d:%d\n", relogio_rtc.horas, relogio_rtc.minutos, relogio_rtc.segundos);
+    //printf("Data: %d/%d/%d\n", relogio_rtc.dia, relogio_rtc.mes, relogio_rtc.ano);
+    //printf("Dia da semana: %d\n", relogio_rtc.diaSemana);
+
     while (true) 
     {
         switch (funcao_ativa)
@@ -168,15 +173,15 @@ int main()
             break;
         
         case 3:
-            estado_3();     // Entra em modo de configuração
+            estado_3();     // Entra em modo de configuração do relógio
             break;
 
         case 4:
-            estado_4();     // Configura o relógio
+            estado_4();     // Configura o horário e a duração da irrigação
             break;
 
         case 5:
-            estado_5();     // Configura a semana da irrigação
+            estado_5();     // habilita os dias da semana para irrigação
             break;
 
         default:
@@ -186,11 +191,12 @@ int main()
     }
 }
 
+// Estados da máquina de estados
+// 0 - Estado de espera
 void estado_0()
 {
     lcd_set_cursor(0,0);
     lcd_escreve_string(CUMBUCO);
-
     relogio();
 
     if((nivel_baixo_flag == true) && (irrigando_flag == false) && (configurando_flag == false))
@@ -201,7 +207,7 @@ void estado_0()
 
     ativa_flag_irrigacao();
 
-    if((irrigando_flag == true) && (enchendo_flag == false) && (configurando_flag == false) && (hora_Irrigar.dia_da_semana[relogio_rtc.diaSemana] == 1))
+    if((irrigando_flag == true) && (enchendo_flag == false) && (configurando_flag == false) && (hora_Irrigar.dia_da_semana[(relogio_rtc.diaSemana - 1)] == 1))
     {
         funcao_ativa = 2;
     }
@@ -213,6 +219,7 @@ void estado_0()
     }
 }
 
+// 1 - Estado de enchimento da caixa d'água
 void estado_1()
 {
     lcd_limpa();
@@ -242,6 +249,7 @@ void estado_1()
     }
 }
 
+// 2 - Estado de irrigação
 void estado_2()
 {
     bool s1 = true;         // Habilita setor 1
@@ -299,6 +307,7 @@ void estado_2()
     }
 }
 
+// 3 - Estado de configuração do relógio
 void estado_3()
 {
     int8_t selecao = 0;
@@ -467,6 +476,7 @@ void estado_3()
     }
 }
 
+// 4 - Estado de configuração da irrigação
 void estado_4()
 {
     int8_t selecao = 0;
@@ -594,13 +604,18 @@ void estado_4()
     }
 }
 
+// 5 - Estado de configuração dos dias da semana
 void estado_5()
 {
+    static int8_t selecao = 0;
+
     lcd_limpa();
     lcd_set_cursor(1,0);
     lcd_escreve_string("Config Semana");
     lcd_set_cursor(1,1);
-    lcd_escreve_string("D1S1T1Q1Q1S1S1");
+    lcd_escreve_string("D0S0T0Q0Q0S0S0");
+
+    mostra_semana();
 
     while(true)
     {
@@ -617,9 +632,138 @@ void estado_5()
             funcao_ativa = 0;
             return;
         }
+
+        if(botao_selecao_flag)
+        {
+            botao_selecao_flag = false;
+            selecao++;
+            if(selecao > 8)
+            {
+                selecao = 0;
+            }
+
+            switch (selecao)
+            {
+            case 1:
+                lcd_set_cursor(7,0);
+                lcd_escreve_string(" Domingo ");
+                break;
+
+            case 2:
+                lcd_set_cursor(7,0);
+                lcd_escreve_string(" Segunda ");
+                break;
+
+            case 3:
+                lcd_set_cursor(7,0);
+                lcd_escreve_string(" Terca   ");
+                break;
+
+            case 4:
+                lcd_set_cursor(7,0);
+                lcd_escreve_string(" Quarta  ");
+                break;
+
+            case 5:
+                lcd_set_cursor(7,0);
+                lcd_escreve_string(" Quinta  ");
+                break;
+
+            case 6:
+                lcd_set_cursor(7,0);
+                lcd_escreve_string(" Sexta   ");
+                break;
+
+            case 7:
+                lcd_set_cursor(7,0);
+                lcd_escreve_string(" Sabado  ");
+                break;
+
+            case 8:
+                funcao_ativa = 0;
+                return;
+                break;
+
+            default:
+                funcao_ativa = 0;
+                return;
+                break;
+            }
+
+        }
+
+        if(botao_dado_flag)
+        {
+            botao_dado_flag = false;
+
+            switch (selecao)
+            {
+            case 1:
+                hora_Irrigar.dia_da_semana[0] = (!hora_Irrigar.dia_da_semana[0]);
+                mostra_semana();
+                break;
+
+            case 2:
+                hora_Irrigar.dia_da_semana[1] = (!hora_Irrigar.dia_da_semana[1]);
+                mostra_semana();
+                break;
+
+            case 3:
+                hora_Irrigar.dia_da_semana[2] = (!hora_Irrigar.dia_da_semana[2]);
+                mostra_semana();
+                break;
+
+            case 4:
+                hora_Irrigar.dia_da_semana[3] = (!hora_Irrigar.dia_da_semana[3]);
+                mostra_semana();
+                break;
+
+            case 5:
+                hora_Irrigar.dia_da_semana[4] = (!hora_Irrigar.dia_da_semana[4]);
+                mostra_semana();
+                break;
+
+            case 6:
+                hora_Irrigar.dia_da_semana[5] = (!hora_Irrigar.dia_da_semana[5]);
+                mostra_semana();
+                break;
+
+            case 7:
+                hora_Irrigar.dia_da_semana[6] = (!hora_Irrigar.dia_da_semana[6]);
+                mostra_semana();
+                break;
+
+            case 8:
+                funcao_ativa = 0;
+                return;
+                break;
+
+            default:
+                break;
+            }
+        }
     }
 }
 
+void mostra_semana()
+{
+    lcd_set_cursor(2,1);
+    lcd_escreve_char(hora_Irrigar.dia_da_semana[0] + OFFSET_ASCII);
+    lcd_set_cursor(4,1);
+    lcd_escreve_char(hora_Irrigar.dia_da_semana[1] + OFFSET_ASCII);
+    lcd_set_cursor(6,1);
+    lcd_escreve_char(hora_Irrigar.dia_da_semana[2] + OFFSET_ASCII);
+    lcd_set_cursor(8,1);
+    lcd_escreve_char(hora_Irrigar.dia_da_semana[3] + OFFSET_ASCII);
+    lcd_set_cursor(10,1);
+    lcd_escreve_char(hora_Irrigar.dia_da_semana[4] + OFFSET_ASCII);
+    lcd_set_cursor(12,1);
+    lcd_escreve_char(hora_Irrigar.dia_da_semana[5] + OFFSET_ASCII);
+    lcd_set_cursor(14,1);
+    lcd_escreve_char(hora_Irrigar.dia_da_semana[6] + OFFSET_ASCII);
+}
+
+// Funções auxiliares
 void ativa_flag_irrigacao()
 {
     if((hora_Irrigar.hora == relogio_rtc.horas) && (hora_Irrigar.minutos == relogio_rtc.minutos))
@@ -628,6 +772,7 @@ void ativa_flag_irrigacao()
     }
 }
 
+// Função para mostrar o relógio no display
 void relogio ()
 {
     get_rtc_time();
@@ -664,19 +809,7 @@ void relogio ()
 
 }
 
-void converte_para_caracteres(int num) {
-    if (num < 0 || num > 59) {
-        printf("Número fora do intervalo\n");
-        return;
-    }
-
-    // Converte o número em caracteres e imprime
-    char result[3];
-    snprintf(result, sizeof(result), "%02d", num);
-    //printf("Número convertido em caracteres: %s\n", result);
-    lcd_escreve_char(result[0]);
-}
-
+// Inicialização dos pinos digitais
 void init_gpio()
 {
     gpio_init(BOMBA);
@@ -720,6 +853,7 @@ void init_gpio()
     gpio_pull_up(BOTAO_DADO);
 }
 
+// Inicializa a estrutura de irrigação
 void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao)
 {
     hora_Irrigar.hora = hora;
@@ -730,13 +864,6 @@ void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao)
     {
         hora_Irrigar.dia_da_semana[i] = 1;
     }
-}
-
-
-int64_t alarm_callback(alarm_id_t id, void *user_data) 
-{
-    // Put your timeout handler code in here
-    return 0;
 }
 
 // Funções dos display 16x2
@@ -777,29 +904,34 @@ void lcd_init() {
     sleep_ms(5); // Espera para a inicialização
 }
 
+// Limpa o display
 void lcd_limpa() 
 {
     lcd_send(0x01, LCD_CMD);
     sleep_ms(5);
 }
 
+// Retorna o cursor para a posição inicial
 void lcd_home() 
 {
     lcd_send(0x02, LCD_CMD);
     sleep_ms(5);
 }
 
+// Seta o cursor na posição desejada
 void lcd_set_cursor(uint8_t col, uint8_t row) 
 {
     uint8_t row_offsets[] = {0x00, 0x40, 0x14, 0x54};
     lcd_send(0x80 | (col + row_offsets[row]), LCD_CMD);
 }
 
+// Escreve um caractere no display
 void lcd_escreve_char(char c) 
 {
     lcd_send(c, LCD_DATA);
 }
 
+// Escreve uma string no display
 void lcd_escreve_string(const char *str) 
 {
     while (*str) {
@@ -807,6 +939,7 @@ void lcd_escreve_string(const char *str)
     }
 }
 
+// Envia um nibble para o display
 static void lcd_send_nibble(uint8_t nibble, uint8_t mode) 
 {
     gpio_put(LCD_RS, mode);
@@ -822,6 +955,7 @@ static void lcd_send_nibble(uint8_t nibble, uint8_t mode)
     sleep_us(100);  // Pequena pausa para desabilitar
 }
 
+// Envia um byte para o display
 static void lcd_send(uint8_t value, uint8_t mode) 
 {
     lcd_send_nibble(value >> 4, mode);
@@ -880,9 +1014,6 @@ void get_rtc_time()
   relogio_rtc.dia = bcd_decimal(dadosHora[4]);
   relogio_rtc.mes = bcd_decimal(dadosHora[5]);
   relogio_rtc.ano = bcd_decimal(dadosHora[6]);
-
-  //printf("Data: %02d/%02d/20%02d - ", relogio_rtc.dia, relogio_rtc.mes, relogio_rtc.ano);
-  //printf("Hora: %02d:%02d:%02d\n", relogio_rtc.horas, relogio_rtc.minutos, relogio_rtc.segundos);
 }
 
 // Inicializa o I2C no Raspberry Pi Pico W
