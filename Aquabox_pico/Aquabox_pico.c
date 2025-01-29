@@ -16,6 +16,11 @@
 #define I2C_SDA 20
 #define I2C_SCL 21
 
+//#define I2C_PORT i2c1 EEPROM
+#define SDA_EEPROM 18
+#define SCL_EEPROM 19
+#define EEPROM_ADDRESS 0x50
+
 // Endereço I2C do DS1307
 #define DS1307_ADDRESS 0x68
 
@@ -38,8 +43,8 @@
 #define CAIXA   28
 
 // Definição dos pinos dos sensores
-#define NIVEL_BAIXO 19
-#define NIVEL_ALTO 18
+#define NIVEL_BAIXO 14
+#define NIVEL_ALTO 15
 #define DELAY_DEBOUNCE 50       //50 milissegundos
 
 // Definição dos botões
@@ -77,6 +82,7 @@ struct tempo
 //Estrutura para controle da irrigação
 struct irriga
 {
+    uint8_t habilita;
     uint8_t hora;
     uint8_t minutos;
     bool dia_da_semana[7];
@@ -102,7 +108,7 @@ struct irriga hora_Irrigar;
 // Protótipo das funções
 void lcd_init();
 void init_gpio();
-void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao);
+void init_irriga(uint8_t habilita, uint8_t hora, uint8_t minutos, uint8_t duracao);
 void lcd_limpa();
 void lcd_home();
 void lcd_set_cursor(uint8_t col, uint8_t row);
@@ -113,10 +119,14 @@ int bcd_decimal(int valor);
 void set_rtc_time(uint8_t segundo, uint8_t minuto, uint8_t hora, uint8_t dia, uint8_t diaMes, uint8_t mes, uint8_t ano);
 void get_rtc_time();
 void init_i2c();
-void converte_para_caracteres(int num);
 void relogio ();
 static void lcd_send_nibble(uint8_t nibble, uint8_t mode);
 static void lcd_send(uint8_t value, uint8_t mode);
+void eeprom_escreve(uint8_t address, uint8_t data);
+uint8_t eeprom_le(uint8_t address);
+void le_eeprom_irriga();
+void grava_eeprom_irriga();
+void eeprom_init();
 bool nivel_timer_callback(struct repeating_timer *t);
 void ativa_flag_irrigacao();
 void mostra_semana();
@@ -134,6 +144,10 @@ int main()
     
     // Inicializa I2C para o RTC
     init_i2c();
+
+    // Inicializa I2C para o EEPROM
+    eeprom_init();
+
     // Inicializa display LCD 16x2
     lcd_init();
 
@@ -141,7 +155,7 @@ int main()
     init_gpio();
 
     // Inicializa dados de horário para irrigação
-    init_irriga(17, 00, 2);     //Ajustado para irrigar as 17:00 pelo tempo de 2 minutos
+    init_irriga(1, 17, 00, 2);     //Ajustado para irrigar as 17:00 pelo tempo de 2 minutos
 
     // Inicializa os temporizadores de debounce
     ultima_vez_nivel_baixo = get_absolute_time();
@@ -151,9 +165,19 @@ int main()
     struct repeating_timer timer;
     add_repeating_timer_ms(100, nivel_timer_callback, NULL, &timer);
 
-    // Seta o relógio RTC para 21/01/2021
-    set_rtc_time(0, 58, 16, 2, 27, 1, 25);  // 21/01/2025 - 10:30:00
+    // Configura o relógio do RTC
+    set_rtc_time(0, 58, 16, 2, 29, 1, 25);  // 29/01/2025 - 16:58:00 (dia que finalizei o projeto)
+
+    // Grava o padrão de fábrica da irrigação no EEPROM
+    if(eeprom_le(0) != 1)
+    {
+        grava_eeprom_irriga();
+    }
+
+    // Lê o padrão de irrigação do EEPROM
+    le_eeprom_irriga();
     
+    // Inicializa o display
     lcd_escreve_string(CUMBUCO);
     lcd_set_cursor(2,1);
     lcd_escreve_string("Versao:  1.0");
@@ -204,23 +228,26 @@ int main()
 // 0 - Estado de espera
 void estado_0()
 {
+    // Mostra o relógio no display
     lcd_set_cursor(0,0);
     lcd_escreve_string(CUMBUCO);
     relogio();
 
+    // Verifica se o nível da caixa d'água está baixo
     if((nivel_baixo_flag == true) && (irrigando_flag == false) && (configurando_flag == false))
     {
         funcao_ativa = 1;
         enchendo_flag = true;
     }
 
+    // Verifica se está no horário de irrigação
     ativa_flag_irrigacao();
-
     if((irrigando_flag == true) && (enchendo_flag == false) && (configurando_flag == false) && (hora_Irrigar.dia_da_semana[(relogio_rtc.diaSemana - 1)] == 1))
     {
         funcao_ativa = 2;
     }
 
+    // Verifica se o botão de menu foi pressionado
     if(botao_menu_flag == true)
     {
         botao_menu_flag = false;
@@ -231,6 +258,7 @@ void estado_0()
 // 1 - Estado de enchimento da caixa d'água
 void estado_1()
 {
+    // Envia a mensagem para o display
     lcd_limpa();
     lcd_set_cursor(0,0);
     lcd_escreve_string(CUMBUCO);
@@ -239,12 +267,14 @@ void estado_1()
 
     while(true)
     {
+        //Começa a encher a caixa d'água
         ativa_flag_irrigacao();
         nivel_baixo_flag = false;
         gpio_put(CAIXA, ON);            // Liga a vávula da caixa d'água
         sleep_ms(1000);                 // Espera um tempo
         gpio_put(BOMBA, ON);            // Liga a bomba d'água
 
+        // Verifica se o nível da caixa d'água está alto
         if(nivel_alto_flag == true)
         {
             gpio_put(BOMBA, OFF);            // Desliga a bomba d'água
@@ -265,6 +295,7 @@ void estado_2()
     bool s2 = false;        // Habilita setor 2
     static int contador = 0;
 
+    // Envia a mensagem para o display
     lcd_limpa();
     lcd_set_cursor(0,0);
     lcd_escreve_string(CUMBUCO);
@@ -273,6 +304,7 @@ void estado_2()
 
     while(true)
     {
+        // Começa a irrigação do setor 1
         if ((s1 == true) && (irrigando_flag == true))
         {
             lcd_set_cursor(0,1);
@@ -292,6 +324,7 @@ void estado_2()
             contador++;
         } 
 
+        // Começa a irrigação do setor 2
         if ((s2 == true) && (irrigando_flag == true))
         {
             lcd_set_cursor(0,1);
@@ -326,6 +359,7 @@ void estado_3()
     int8_t hora = 0;
     int8_t minutos = 0;
 
+    // Envia a mensagem para o display
     lcd_limpa();
     lcd_set_cursor(1,0);
     lcd_escreve_string("Config Relogio");
@@ -334,6 +368,7 @@ void estado_3()
 
     while (true)
     {
+        // Verifica se o botão de retorno foi pressionado
         if(botao_retorno_flag)
         {
             botao_retorno_flag = false;
@@ -341,6 +376,7 @@ void estado_3()
             return;
         }
 
+        // Verifica se o botão de menu foi pressionado
         if(botao_menu_flag)
         {
             botao_menu_flag = false;
@@ -348,6 +384,7 @@ void estado_3()
             return;
         }
 
+        // Verifica se o botão de seleção foi pressionado
         if(botao_selecao_flag)
         {
             botao_selecao_flag = false;
@@ -400,6 +437,7 @@ void estado_3()
             }
         }
 
+        // Verifica se o botão de dado foi pressionado
         if(botao_dado_flag)
         {
             uint8_t conf_rtc_Display[10];
@@ -407,7 +445,7 @@ void estado_3()
 
             switch (selecao)
             {
-            case 1:
+            case 1:     // Configura o dia
                 dia++;
                 if(dia > 31)
                 {
@@ -418,7 +456,7 @@ void estado_3()
                 lcd_escreve_char((dia%10) + OFFSET_ASCII);
                 break;
 
-            case 2:
+            case 2:    // Configura o mês
                 mes++;
                 if(mes > 12)
                 {
@@ -429,7 +467,7 @@ void estado_3()
                 lcd_escreve_char((mes%10) + OFFSET_ASCII);
                 break;
 
-            case 3:
+            case 3:    // Configura o ano
                 ano++;
                 if(ano > 99)
                 {
@@ -440,7 +478,7 @@ void estado_3()
                 lcd_escreve_char((ano%10) + OFFSET_ASCII);
                 break;
 
-            case 4:
+            case 4:   // Configura a hora
                 hora++;
                 if(hora > 23)
                 {
@@ -451,7 +489,7 @@ void estado_3()
                 lcd_escreve_char((hora%10) + OFFSET_ASCII);
                 break;
 
-            case 5:
+            case 5:   // Configura os minutos
                 minutos++;
                 if(minutos > 59)
                 {
@@ -462,7 +500,7 @@ void estado_3()
                 lcd_escreve_char((minutos%10) + OFFSET_ASCII);
                 break;
 
-            case 6:
+            case 6:  // Salva a configuração
                 conf_rtc_Display[0] = 0x00;
                 conf_rtc_Display[1] = decimal_bcd(0) & 0x7F;
                 conf_rtc_Display[2] = decimal_bcd(minutos);
@@ -493,6 +531,7 @@ void estado_4()
     int8_t minutos = 0;
     int8_t duracao = 0;
 
+    // Envia a mensagem para o display
     lcd_limpa();
     lcd_set_cursor(0,0);
     lcd_escreve_string("Config Irrigacao");
@@ -501,6 +540,7 @@ void estado_4()
 
     while(true)
     {
+        // Verifica se o botão de retorno foi pressionado
         if(botao_retorno_flag)
         {
             botao_retorno_flag = false;
@@ -508,6 +548,7 @@ void estado_4()
             return;
         }
 
+        // Verifica se o botão de menu foi pressionado
         if(botao_menu_flag)
         {
             botao_menu_flag = false;
@@ -515,6 +556,7 @@ void estado_4()
             return;
         }
 
+        // Verifica se o botão de seleção foi pressionado
         if(botao_selecao_flag)
         {
             botao_selecao_flag = false;
@@ -527,17 +569,17 @@ void estado_4()
             switch (selecao)
             {
             
-            case 1:
+            case 1: 
                 lcd_set_cursor(0,0);
-                lcd_escreve_string("   Config Hora   ");
+                lcd_escreve_string("   Config Hora   ");    
                 break;
 
-            case 2:
+            case 2: 
                 lcd_set_cursor(0,0);
                 lcd_escreve_string(" Config Minutos  ");
                 break;
 
-            case 3:
+            case 3: 
                 lcd_set_cursor(0,0);
                 lcd_escreve_string(" Config Duracao  ");
                 break;
@@ -565,7 +607,7 @@ void estado_4()
 
             switch (selecao)
             {
-            case 1:
+            case 1: // Configura a hora
                 hora++;
                 if(hora > 23)
                 {
@@ -574,9 +616,10 @@ void estado_4()
                 lcd_set_cursor(3,1);
                 lcd_escreve_char((hora/10) + OFFSET_ASCII);
                 lcd_escreve_char((hora%10) + OFFSET_ASCII);
+                hora_Irrigar.hora = hora;
                 break;
 
-            case 2:
+            case 2: // Configura os minutos
                 minutos++;
                 if(minutos > 59)
                 {
@@ -585,9 +628,10 @@ void estado_4()
                 lcd_set_cursor(6,1);
                 lcd_escreve_char((minutos/10) + OFFSET_ASCII);
                 lcd_escreve_char((minutos%10) + OFFSET_ASCII);
+                hora_Irrigar.minutos = minutos;
                 break;
 
-            case 3:
+            case 3: // Configura a duração
                 duracao++;
                 if(duracao > 59)
                 {
@@ -596,12 +640,14 @@ void estado_4()
                 lcd_set_cursor(13,1);
                 lcd_escreve_char((duracao/10) + OFFSET_ASCII);
                 lcd_escreve_char((duracao%10) + OFFSET_ASCII);
+                hora_Irrigar.duracao = duracao*60;
                 break;
 
-            case 4://Salvar configuração
+            case 4: // Salvar configuração na EEPROM
                 hora_Irrigar.hora = hora;
                 hora_Irrigar.minutos = minutos;
                 hora_Irrigar.duracao = duracao*60;
+                grava_eeprom_irriga;
                 funcao_ativa = 0;
                 return;
                 break;
@@ -618,6 +664,7 @@ void estado_5()
 {
     static int8_t selecao = 0;
 
+    // Envia a mensagem para o display
     lcd_limpa();
     lcd_set_cursor(1,0);
     lcd_escreve_string("Config Semana");
@@ -628,6 +675,7 @@ void estado_5()
 
     while(true)
     {
+        // Verifica se o botão de retorno foi pressionado
         if(botao_retorno_flag)
         {
             botao_retorno_flag = false;
@@ -635,6 +683,7 @@ void estado_5()
             return;
         }
 
+        // Verifica se o botão de menu foi pressionado
         if(botao_menu_flag)
         {
             botao_menu_flag = false;
@@ -642,6 +691,7 @@ void estado_5()
             return;
         }
 
+        // Verifica se o botão de seleção foi pressionado
         if(botao_selecao_flag)
         {
             botao_selecao_flag = false;
@@ -701,48 +751,50 @@ void estado_5()
 
         }
 
+        // Verifica se o botão de dado foi pressionado
         if(botao_dado_flag)
         {
             botao_dado_flag = false;
 
             switch (selecao)
             {
-            case 1:
+            case 1: // Habilita ou desabilita o domingo
                 hora_Irrigar.dia_da_semana[0] = (!hora_Irrigar.dia_da_semana[0]);
                 mostra_semana();
                 break;
 
-            case 2:
+            case 2: // Habilita ou desabilita a segunda
                 hora_Irrigar.dia_da_semana[1] = (!hora_Irrigar.dia_da_semana[1]);
                 mostra_semana();
                 break;
 
-            case 3:
+            case 3: // Habilita ou desabilita a terça
                 hora_Irrigar.dia_da_semana[2] = (!hora_Irrigar.dia_da_semana[2]);
                 mostra_semana();
                 break;
 
-            case 4:
+            case 4: // Habilita ou desabilita a quarta
                 hora_Irrigar.dia_da_semana[3] = (!hora_Irrigar.dia_da_semana[3]);
                 mostra_semana();
                 break;
 
-            case 5:
+            case 5: // Habilita ou desabilita a quinta
                 hora_Irrigar.dia_da_semana[4] = (!hora_Irrigar.dia_da_semana[4]);
                 mostra_semana();
                 break;
 
-            case 6:
+            case 6: // Habilita ou desabilita a sexta
                 hora_Irrigar.dia_da_semana[5] = (!hora_Irrigar.dia_da_semana[5]);
                 mostra_semana();
                 break;
 
-            case 7:
+            case 7: // Habilita ou desabilita o sábado
                 hora_Irrigar.dia_da_semana[6] = (!hora_Irrigar.dia_da_semana[6]);
                 mostra_semana();
                 break;
 
-            case 8:
+            case 8: // Salva a configuração na EEPROM
+                grava_eeprom_irriga();
                 funcao_ativa = 0;
                 return;
                 break;
@@ -754,6 +806,7 @@ void estado_5()
     }
 }
 
+// Função para mostrar a semana no display
 void mostra_semana()
 {
     lcd_set_cursor(2,1);
@@ -863,8 +916,9 @@ void init_gpio()
 }
 
 // Inicializa a estrutura de irrigação
-void init_irriga(uint8_t hora, uint8_t minutos, uint8_t duracao)
+void init_irriga(uint8_t habilita, uint8_t hora, uint8_t minutos, uint8_t duracao)
 {
+    hora_Irrigar.habilita = habilita;
     hora_Irrigar.hora = hora;
     hora_Irrigar.minutos = minutos;
     hora_Irrigar.duracao = duracao*60;
@@ -1034,6 +1088,60 @@ void init_i2c()
   gpio_pull_up(I2C_SDA);
   gpio_pull_up(I2C_SCL);
 }
+
+// Funções para EEPROM
+/************************************************************************************** */
+
+void eeprom_init()
+{
+    i2c_init(i2c1, 100 * 1000);
+    gpio_set_function(SDA_EEPROM, GPIO_FUNC_I2C);
+    gpio_set_function(SCL_EEPROM, GPIO_FUNC_I2C);
+    //gpio_pull_up(4);
+    //gpio_pull_up(5);
+}
+
+// Escreve um byte na EEPROM
+void eeprom_escreve(uint8_t address, uint8_t data)
+{
+    uint8_t eeprom_data[2] = {address, data};
+    i2c_write_blocking(i2c0, EEPROM_ADDRESS, eeprom_data, 2, false);
+}
+
+// Lê um byte da EEPROM
+uint8_t eeprom_le(uint8_t address)
+{
+    uint8_t eeprom_data[1] = {address};
+    i2c_write_blocking(i2c0, EEPROM_ADDRESS, eeprom_data, 1, true);
+    i2c_read_blocking(i2c0, EEPROM_ADDRESS, eeprom_data, 1, false);
+    return eeprom_data[0];
+}
+
+void le_eeprom_irriga()
+{
+    hora_Irrigar.habilita = eeprom_le(0);
+    hora_Irrigar.hora = eeprom_le(1);
+    hora_Irrigar.minutos = eeprom_le(2);
+    hora_Irrigar.duracao = eeprom_le(3);
+    for(int i = 4; i < 11; i++)
+    {
+        hora_Irrigar.dia_da_semana[i-4] = eeprom_le(i);
+    }
+}
+
+void grava_eeprom_irriga()
+{
+    eeprom_escreve(0, hora_Irrigar.habilita);
+    eeprom_escreve(1, hora_Irrigar.hora);
+    eeprom_escreve(2, hora_Irrigar.minutos);
+    eeprom_escreve(3, hora_Irrigar.duracao);
+    for(int i = 4; i < 11; i++)
+    {
+        eeprom_escreve(i, hora_Irrigar.dia_da_semana[i-4]);
+    }
+}
+
+/************************************************************************************** */
 
 // Funções Callback
 // Função de callback para o timer
